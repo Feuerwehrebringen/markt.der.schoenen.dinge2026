@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gesamtübersicht – Markt der schönen Dinge 2026</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    body { padding: 1.5rem; }
+    .logo-header { max-width: 260px; width: 100%; height: auto; margin-bottom: 0.5rem; }
+    .plan-table { border-collapse: collapse; width: 100%; }
+    .plan-table th, .plan-table td {
+      border: 1px solid #dbdbdb;
+      padding: 6px 10px;
+      vertical-align: top;
+    }
+    .plan-table thead th {
+      background: #363636;
+      color: #fff;
+      text-align: left;
+    }
+    .rolle-cell { font-weight: 600; white-space: nowrap; background: #fafafa; }
+    .frei-cell { color: #b5b5b5; font-style: italic; }
+    .toolbar { margin-bottom: 1rem; }
+
+    @media print {
+      @page { size: landscape; margin: 1cm; }
+      body { padding: 0; }
+      .toolbar, .navbar, .no-print { display: none !important; }
+      .plan-table { font-size: 11pt; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="toolbar no-print">
+    <a href="index.html" class="button is-light">
+      <i class="fa-solid fa-arrow-left"></i>&nbsp; Zurück zum Formular
+    </a>
+    <button class="button is-danger" onclick="window.print()">
+      <i class="fa-solid fa-print"></i>&nbsp; Drucken / Als PDF speichern
+    </button>
+  </div>
+
+  <img class="logo-header" src="logo.png" alt="Freiwillige Feuerwehr Ebringen">
+  <h1 class="title is-4">Einteilungsplan – Markt der schönen Dinge 2026</h1>
+  <p class="subtitle is-6" id="standInfo">Sonntag, 18.10.2026</p>
+
+  <div id="loading" class="notification is-light">
+    <i class="fa-solid fa-spinner fa-spin"></i> Lade Übersicht …
+  </div>
+
+  <div id="planContainer"></div>
+
+<script>
+  const API_URL = 'https://script.google.com/macros/s/AKfycbxQvxeHADf2WVUWK1btM9riMg2Ax0FfSYxmsRwlWOzA7TkM0vmcuG2mXA5x3o6Qxvui/exec';
+
+  fetch(API_URL)
+    .then(function (res) { return res.json(); })
+    .then(function (data) {
+      if (!data.success) throw new Error(data.error || 'Unbekannter Fehler');
+      render(data.schichten);
+    })
+    .catch(function () {
+      document.getElementById('loading').innerHTML =
+        '<span class="has-text-danger">Übersicht konnte nicht geladen werden. Bitte Seite neu laden.</span>';
+    });
+
+  function render(schichten) {
+    document.getElementById('loading').style.display = 'none';
+
+    // Gruppieren nach Block, Reihenfolge der Rollen aus dem ersten Block übernehmen
+    const bloecke = {};
+    const blockReihenfolge = [];
+    schichten.forEach(function (s) {
+      if (!bloecke[s.block]) {
+        bloecke[s.block] = { start: s.start, ende: s.ende, rollen: {} };
+        blockReihenfolge.push(s.block);
+      }
+      bloecke[s.block].rollen[s.rolle] = s;
+    });
+
+    const rollenReihenfolge = [];
+    schichten.forEach(function (s) {
+      if (rollenReihenfolge.indexOf(s.rolle) === -1) rollenReihenfolge.push(s.rolle);
+    });
+
+    if (schichten.length) {
+      document.getElementById('standInfo').textContent = schichten[0].datum;
+    }
+
+    let html = '<table class="plan-table"><thead><tr><th>Aufgabe</th>';
+    blockReihenfolge.forEach(function (block) {
+      const b = bloecke[block];
+      html += '<th>' + block + '<br><span style="font-weight:normal;font-size:0.85em;">' +
+        b.start + '\u2013' + b.ende + ' Uhr</span></th>';
+    });
+    html += '</tr></thead><tbody>';
+
+    rollenReihenfolge.forEach(function (rolle) {
+      html += '<tr><td class="rolle-cell">' + rolle + '</td>';
+      blockReihenfolge.forEach(function (block) {
+        const s = bloecke[block].rollen[rolle];
+        if (!s) { html += '<td></td>'; return; }
+
+        if (s.namen && s.namen.length) {
+          html += '<td>' + s.namen.join('<br>') +
+            (s.frei > 0 ? '<br><span class="frei-cell">+ ' + s.frei + ' frei</span>' : '') +
+            '</td>';
+        } else {
+          html += '<td class="frei-cell">frei (' + s.plaetze + ' Platz' + (s.plaetze > 1 ? 'e' : '') + ')</td>';
+        }
+      });
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    document.getElementById('planContainer').innerHTML = html;
+  }
+</script>
+</body>
+</html>
