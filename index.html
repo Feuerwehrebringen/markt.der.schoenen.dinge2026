@@ -10,10 +10,16 @@
     body { padding: 1.5rem; }
     .container { max-width: 640px; }
     .slot-full { color: #b5b5b5; }
+    .logo-header { max-width: 320px; width: 100%; height: auto; margin-bottom: 1rem; }
+    .block-title { margin-top: 1.5rem; margin-bottom: 0.5rem; }
+    .schicht-table td { vertical-align: middle; }
+    .schicht-table .rolle-col { white-space: nowrap; }
+    .frei-tag { white-space: nowrap; }
   </style>
 </head>
 <body>
 <div class="container">
+  <img class="logo-header" src="logo.png" alt="Freiwillige Feuerwehr Ebringen">
   <h1 class="title is-4">
     <i class="fa-solid fa-store"></i>
     Dienstplan – Markt der schönen Dinge 2026
@@ -163,22 +169,50 @@
     });
 
     Object.keys(bloecke).forEach(function (block) {
+      const beispiel = bloecke[block][0];
       const title = document.createElement('p');
-      title.className = 'has-text-weight-semibold mt-3';
-      title.textContent = block;
+      title.className = 'has-text-weight-semibold block-title';
+      title.innerHTML = '<i class="fa-regular fa-clock"></i>&nbsp; ' + block +
+        ' <span class="has-text-weight-normal has-text-grey">(' + beispiel.start + '–' + beispiel.ende + ' Uhr)</span>';
       container.appendChild(title);
 
+      const table = document.createElement('table');
+      table.className = 'table is-fullwidth is-striped schicht-table';
+
+      const tbody = document.createElement('tbody');
       bloecke[block].forEach(function (s) {
-        const label = document.createElement('label');
-        label.className = 'radio is-block';
         const voll = s.frei <= 0;
-        label.innerHTML =
-          '<input type="radio" name="schicht" value="' + s.id + '"' + (voll ? ' disabled' : '') + '> ' +
-          s.rolle + ' (' + s.start + '–' + s.ende + ' Uhr) — ' +
-          (voll ? '<span class="slot-full">voll besetzt</span>' : s.frei + ' von ' + s.plaetze + ' Plätzen frei');
-        label.style.display = 'block';
-        container.appendChild(label);
+        const tr = document.createElement('tr');
+        if (voll) tr.classList.add('has-text-grey-light');
+
+        let tagClass = 'is-success';
+        if (voll) tagClass = 'is-light';
+        else if (s.frei === 1) tagClass = 'is-warning';
+
+        const freiText = voll ? 'voll besetzt' : (s.frei + ' / ' + s.plaetze + ' frei');
+
+        tr.innerHTML =
+          '<td style="width:2.5rem;">' +
+            '<label class="radio">' +
+              '<input type="radio" name="schicht" value="' + s.id + '"' + (voll ? ' disabled' : '') + '>' +
+            '</label>' +
+          '</td>' +
+          '<td class="rolle-col">' + s.rolle + '</td>' +
+          '<td class="has-text-right">' +
+            '<span class="tag ' + tagClass + ' frei-tag">' + freiText + '</span>' +
+          '</td>';
+        if (!voll) {
+          tr.style.cursor = 'pointer';
+          tr.addEventListener('click', function (ev) {
+            if (ev.target.tagName === 'INPUT') return;
+            tr.querySelector('input[type="radio"]').checked = true;
+          });
+        }
+        tbody.appendChild(tr);
       });
+
+      table.appendChild(tbody);
+      container.appendChild(table);
     });
   }
 
