@@ -2,18 +2,237 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dienstplan – Markt der schönen Dinge 2026</title>
-  <!-- WICHTIG: Nach dem Deployment des Apps Script die Platzhalter-URL unten ersetzen -->
-  <meta http-equiv="refresh" content="0; url=https://script.google.com/macros/s/AKfycbxQvxeHADf2WVUWK1btM9riMg2Ax0FfSYxmsRwlWOzA7TkM0vmcuG2mXA5x3o6Qxvui/exec">
-  <link rel="canonical" href="https://script.google.com/macros/s/AKfycbxQvxeHADf2WVUWK1btM9riMg2Ax0FfSYxmsRwlWOzA7TkM0vmcuG2mXA5x3o6Qxvui/exec">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
-    body { font-family: sans-serif; text-align: center; padding: 3rem 1rem; }
+    body { padding: 1.5rem; }
+    .container { max-width: 640px; }
+    .slot-full { color: #b5b5b5; }
   </style>
 </head>
 <body>
-  <p>Du wirst weitergeleitet zum Dienstplan …</p>
-  <p>Falls das nicht automatisch klappt:
-    <a href="https://script.google.com/macros/s/AKfycbxQvxeHADf2WVUWK1btM9riMg2Ax0FfSYxmsRwlWOzA7TkM0vmcuG2mXA5x3o6Qxvui/exec">hier klicken</a>
-  </p>
+<div class="container">
+  <h1 class="title is-4">
+    <i class="fa-solid fa-store"></i>
+    Dienstplan – Markt der schönen Dinge 2026
+  </h1>
+  <p class="subtitle is-6">Sonntag, 18.10.2026 &nbsp;|&nbsp; Freiwillige Feuerwehr Ebringen</p>
+
+  <div id="loading" class="notification is-light">
+    <i class="fa-solid fa-spinner fa-spin"></i> Lade Schichten …
+  </div>
+
+  <div id="loadError" class="notification is-danger" style="display:none;">
+    Die Schichten konnten nicht geladen werden. Bitte Seite neu laden oder später nochmal versuchen.
+  </div>
+
+  <form id="anmeldeForm" style="display:none;">
+
+    <div class="field">
+      <label class="label">Ich bin</label>
+      <div class="control">
+        <label class="radio">
+          <input type="radio" name="herkunft" value="Kamerad/in" checked> Kamerad/in
+        </label>
+        <label class="radio">
+          <input type="radio" name="herkunft" value="Extern"> Externe/r Helfer/in
+        </label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="label">Aus der Liste wählen (optional, füllt Name automatisch)</label>
+      <div class="control">
+        <div class="select is-fullwidth">
+          <select id="mannschaftSelect">
+            <option value="">– frei eintragen –</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="field is-grouped">
+      <div class="control is-expanded">
+        <label class="label">Vorname *</label>
+        <input class="input" type="text" id="vorname" required>
+      </div>
+      <div class="control is-expanded">
+        <label class="label">Nachname *</label>
+        <input class="input" type="text" id="nachname" required>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="label">Email *</label>
+      <div class="control">
+        <input class="input" type="email" id="email" required>
+      </div>
+      <p class="help">An diese Adresse geht die Bestätigung deiner Schicht.</p>
+    </div>
+
+    <div class="field">
+      <label class="label">Telefon (optional)</label>
+      <div class="control">
+        <input class="input" type="tel" id="telefon">
+      </div>
+    </div>
+
+    <hr>
+
+    <div class="field">
+      <label class="label">Schicht wählen *</label>
+      <div id="schichtenContainer"></div>
+    </div>
+
+    <div class="field">
+      <label class="label">Kommentar (optional)</label>
+      <div class="control">
+        <textarea class="textarea" id="kommentar" rows="2"></textarea>
+      </div>
+    </div>
+
+    <div id="errorBox" class="notification is-danger" style="display:none;"></div>
+
+    <div class="field">
+      <div class="control">
+        <button type="submit" class="button is-danger is-fullwidth" id="submitBtn">
+          <i class="fa-solid fa-check"></i>&nbsp; Schicht eintragen
+        </button>
+      </div>
+    </div>
+  </form>
+
+  <div id="successBox" class="notification is-success" style="display:none;">
+    <i class="fa-solid fa-circle-check"></i>
+    Danke, deine Eintragung ist gespeichert! Du bekommst gleich eine Bestätigungsmail.
+  </div>
+</div>
+
+<script>
+  // Apps-Script-Webapp-URL (liefert JSON, kein HTML)
+  const API_URL = 'https://script.google.com/macros/s/AKfycbxQvxeHADf2WVUWK1btM9riMg2Ax0FfSYxmsRwlWOzA7TkM0vmcuG2mXA5x3o6Qxvui/exec';
+
+  let schichtenData = [];
+  let mannschaftData = [];
+
+  fetch(API_URL)
+    .then(function (res) { return res.json(); })
+    .then(function (data) {
+      if (!data.success) throw new Error(data.error || 'Unbekannter Fehler');
+      onDataLoaded(data);
+    })
+    .catch(function () {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('loadError').style.display = 'block';
+    });
+
+  function onDataLoaded(data) {
+    mannschaftData = data.mannschaft;
+    schichtenData = data.schichten;
+
+    const select = document.getElementById('mannschaftSelect');
+    mannschaftData.forEach(function (m, i) {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = m.vorname + ' ' + m.nachname;
+      select.appendChild(opt);
+    });
+    select.addEventListener('change', function () {
+      if (select.value === '') return;
+      const m = mannschaftData[select.value];
+      document.getElementById('vorname').value = m.vorname;
+      document.getElementById('nachname').value = m.nachname;
+    });
+
+    renderSchichten();
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('anmeldeForm').style.display = 'block';
+  }
+
+  function renderSchichten() {
+    const container = document.getElementById('schichtenContainer');
+    container.innerHTML = '';
+
+    const bloecke = {};
+    schichtenData.forEach(function (s) {
+      if (!bloecke[s.block]) bloecke[s.block] = [];
+      bloecke[s.block].push(s);
+    });
+
+    Object.keys(bloecke).forEach(function (block) {
+      const title = document.createElement('p');
+      title.className = 'has-text-weight-semibold mt-3';
+      title.textContent = block;
+      container.appendChild(title);
+
+      bloecke[block].forEach(function (s) {
+        const label = document.createElement('label');
+        label.className = 'radio is-block';
+        const voll = s.frei <= 0;
+        label.innerHTML =
+          '<input type="radio" name="schicht" value="' + s.id + '"' + (voll ? ' disabled' : '') + '> ' +
+          s.rolle + ' (' + s.start + '–' + s.ende + ' Uhr) — ' +
+          (voll ? '<span class="slot-full">voll besetzt</span>' : s.frei + ' von ' + s.plaetze + ' Plätzen frei');
+        label.style.display = 'block';
+        container.appendChild(label);
+      });
+    });
+  }
+
+  document.getElementById('anmeldeForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    const schichtRadio = document.querySelector('input[name="schicht"]:checked');
+    const herkunftRadio = document.querySelector('input[name="herkunft"]:checked');
+    const errorBox = document.getElementById('errorBox');
+    errorBox.style.display = 'none';
+
+    if (!schichtRadio) {
+      errorBox.textContent = 'Bitte eine Schicht auswählen.';
+      errorBox.style.display = 'block';
+      return;
+    }
+
+    const payload = {
+      schichtId: schichtRadio.value,
+      herkunft: herkunftRadio.value,
+      vorname: document.getElementById('vorname').value,
+      nachname: document.getElementById('nachname').value,
+      email: document.getElementById('email').value,
+      telefon: document.getElementById('telefon').value,
+      kommentar: document.getElementById('kommentar').value
+    };
+
+    const btn = document.getElementById('submitBtn');
+    btn.classList.add('is-loading');
+
+    // Content-Type text/plain vermeidet den CORS-Preflight (OPTIONS),
+    // den Apps Script nicht unterstützt. Der Body ist trotzdem echtes JSON.
+    fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        btn.classList.remove('is-loading');
+        if (!data.success) {
+          errorBox.textContent = data.error || 'Es ist ein Fehler aufgetreten.';
+          errorBox.style.display = 'block';
+          return;
+        }
+        document.getElementById('anmeldeForm').style.display = 'none';
+        document.getElementById('successBox').style.display = 'block';
+      })
+      .catch(function () {
+        btn.classList.remove('is-loading');
+        errorBox.textContent = 'Verbindung fehlgeschlagen. Bitte nochmal versuchen.';
+        errorBox.style.display = 'block';
+      });
+  });
+</script>
 </body>
 </html>
