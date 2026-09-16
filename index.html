@@ -30,15 +30,7 @@
     <i class="fa-solid fa-table-list"></i>&nbsp; Gesamtübersicht anzeigen
   </a>
 
-  <div id="loading" class="notification is-light">
-    <i class="fa-solid fa-spinner fa-spin"></i> Lade Schichten …
-  </div>
-
-  <div id="loadError" class="notification is-danger" style="display:none;">
-    Die Schichten konnten nicht geladen werden. Bitte Seite neu laden oder später nochmal versuchen.
-  </div>
-
-  <form id="anmeldeForm" style="display:none;">
+  <form id="anmeldeForm">
 
     <div class="field">
       <label class="label">Ich bin</label>
@@ -56,8 +48,8 @@
       <label class="label">Aus der Liste wählen (optional, füllt Name automatisch)</label>
       <div class="control">
         <div class="select is-fullwidth">
-          <select id="mannschaftSelect">
-            <option value="">– frei eintragen –</option>
+          <select id="mannschaftSelect" disabled>
+            <option value="">– wird geladen –</option>
           </select>
         </div>
       </div>
@@ -93,7 +85,17 @@
 
     <div class="field">
       <label class="label">Schicht wählen *</label>
-      <div id="schichtenContainer"></div>
+      <div id="schichtenContainer">
+        <div class="notification is-light">
+          <i class="fa-solid fa-spinner fa-spin"></i> Lade Schichten … das kann bei Google Apps Script gelegentlich ein paar Sekunden dauern.
+        </div>
+      </div>
+      <div id="loadError" class="notification is-danger" style="display:none;">
+        Die Schichten konnten nicht geladen werden.
+        <button type="button" class="button is-small is-danger is-light ml-2" id="retryBtn">
+          <i class="fa-solid fa-rotate-right"></i>&nbsp; Nochmal versuchen
+        </button>
+      </div>
     </div>
 
     <div class="field">
@@ -107,8 +109,8 @@
 
     <div class="field">
       <div class="control">
-        <button type="submit" class="button is-danger is-fullwidth" id="submitBtn">
-          <i class="fa-solid fa-check"></i>&nbsp; Schicht eintragen
+        <button type="submit" class="button is-danger is-fullwidth" id="submitBtn" disabled>
+          <i class="fa-solid fa-spinner fa-spin"></i>&nbsp; Schichten werden geladen …
         </button>
       </div>
     </div>
@@ -127,28 +129,47 @@
   let schichtenData = [];
   let mannschaftData = [];
 
-  fetch(API_URL)
-    .then(function (res) { return res.json(); })
-    .then(function (data) {
-      if (!data.success) throw new Error(data.error || 'Unbekannter Fehler');
-      onDataLoaded(data);
-    })
-    .catch(function () {
-      document.getElementById('loading').style.display = 'none';
-      document.getElementById('loadError').style.display = 'block';
-    });
+  ladeSchichten();
+  document.getElementById('retryBtn').addEventListener('click', ladeSchichten);
+
+  function ladeSchichten() {
+    document.getElementById('schichtenContainer').innerHTML =
+      '<div class="notification is-light">' +
+        '<i class="fa-solid fa-spinner fa-spin"></i> Lade Schichten … das kann bei Google Apps Script gelegentlich ein paar Sekunden dauern.' +
+      '</div>';
+    document.getElementById('loadError').style.display = 'none';
+
+    // Timeout nach 25 Sekunden, damit die Seite nicht endlos "lädt" wirkt
+    const controller = new AbortController();
+    const timeoutId = setTimeout(function () { controller.abort(); }, 25000);
+
+    fetch(API_URL, { signal: controller.signal })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        clearTimeout(timeoutId);
+        if (!data.success) throw new Error(data.error || 'Unbekannter Fehler');
+        onDataLoaded(data);
+      })
+      .catch(function () {
+        clearTimeout(timeoutId);
+        document.getElementById('schichtenContainer').innerHTML = '';
+        document.getElementById('loadError').style.display = 'block';
+      });
+  }
 
   function onDataLoaded(data) {
     mannschaftData = data.mannschaft;
     schichtenData = data.schichten;
 
     const select = document.getElementById('mannschaftSelect');
+    select.innerHTML = '<option value="">– frei eintragen –</option>';
     mannschaftData.forEach(function (m, i) {
       const opt = document.createElement('option');
       opt.value = i;
       opt.textContent = m.vorname + ' ' + m.nachname;
       select.appendChild(opt);
     });
+    select.disabled = false;
     select.addEventListener('change', function () {
       if (select.value === '') return;
       const m = mannschaftData[select.value];
@@ -158,8 +179,9 @@
 
     renderSchichten();
 
-    document.getElementById('loading').style.display = 'none';
-    document.getElementById('anmeldeForm').style.display = 'block';
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '<i class="fa-solid fa-check"></i>&nbsp; Schicht eintragen';
   }
 
   function renderSchichten() {
