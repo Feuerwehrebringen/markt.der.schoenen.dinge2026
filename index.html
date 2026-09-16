@@ -122,7 +122,7 @@
 
 <script>
   // Apps-Script-Webapp-URL (liefert JSON, kein HTML)
-  const API_URL = 'https://script.google.com/macros/s/AKfycbzj9VQteghWUbRZCO9a-iAnACk51peyx65-nNrwV2wg35RGDUTySs8dWVedAKhrhqJJWg/exec';
+  const API_URL = 'https://script.google.com/macros/s/AKfycbxQvxeHADf2WVUWK1btM9riMg2Ax0FfSYxmsRwlWOzA7TkM0vmcuG2mXA5x3o6Qxvui/exec';
 
   let schichtenData = [];
   let mannschaftData = [];
@@ -173,11 +173,9 @@
     });
 
     Object.keys(bloecke).forEach(function (block) {
-      const beispiel = bloecke[block][0];
       const title = document.createElement('p');
       title.className = 'has-text-weight-semibold block-title';
-      title.innerHTML = '<i class="fa-regular fa-clock"></i>&nbsp; ' + block +
-        ' <span class="has-text-weight-normal has-text-grey">(' + beispiel.start + '–' + beispiel.ende + ' Uhr)</span>';
+      title.innerHTML = '<i class="fa-regular fa-clock"></i>&nbsp; ' + block;
       container.appendChild(title);
 
       const table = document.createElement('table');
@@ -187,11 +185,10 @@
       bloecke[block].forEach(function (s) {
         const voll = s.frei <= 0;
         const tr = document.createElement('tr');
-        if (voll) tr.classList.add('has-text-grey-light');
 
-        let tagClass = 'is-success';
-        if (voll) tagClass = 'is-light';
-        else if (s.frei === 1) tagClass = 'is-warning';
+        let tagClass = 'is-warning'; // teilweise besetzt
+        if (s.belegt === 0) tagClass = 'is-danger';       // noch niemand eingetragen
+        else if (voll) tagClass = 'is-success';           // komplett voll besetzt
 
         const freiText = voll ? 'voll besetzt' : (s.frei + ' / ' + s.plaetze + ' frei');
 

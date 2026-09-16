@@ -54,7 +54,7 @@
   <div id="planContainer"></div>
 
 <script>
-  const API_URL = 'https://script.google.com/macros/s/AKfycbzj9VQteghWUbRZCO9a-iAnACk51peyx65-nNrwV2wg35RGDUTySs8dWVedAKhrhqJJWg/exec';
+  const API_URL = 'https://script.google.com/macros/s/AKfycbxQvxeHADf2WVUWK1btM9riMg2Ax0FfSYxmsRwlWOzA7TkM0vmcuG2mXA5x3o6Qxvui/exec';
 
   fetch(API_URL)
     .then(function (res) { return res.json(); })
@@ -92,9 +92,7 @@
 
     let html = '<table class="plan-table"><thead><tr><th>Aufgabe</th>';
     blockReihenfolge.forEach(function (block) {
-      const b = bloecke[block];
-      html += '<th>' + block + '<br><span style="font-weight:normal;font-size:0.85em;">' +
-        b.start + '\u2013' + b.ende + ' Uhr</span></th>';
+      html += '<th>' + block + '</th>';
     });
     html += '</tr></thead><tbody>';
 
