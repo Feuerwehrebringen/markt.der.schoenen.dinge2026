@@ -48,7 +48,14 @@
   <p class="subtitle is-6" id="standInfo">Sonntag, 18.10.2026</p>
 
   <div id="loading" class="notification is-light">
-    <i class="fa-solid fa-spinner fa-spin"></i> Lade Übersicht …
+    <i class="fa-solid fa-spinner fa-spin"></i> Lade Übersicht … das kann bei Google Apps Script gelegentlich ein paar Sekunden dauern.
+  </div>
+
+  <div id="loadError" class="notification is-danger" style="display:none;">
+    Übersicht konnte nicht geladen werden.
+    <button type="button" class="button is-small is-danger is-light ml-2" id="retryBtn">
+      <i class="fa-solid fa-rotate-right"></i>&nbsp; Nochmal versuchen
+    </button>
   </div>
 
   <div id="planContainer"></div>
@@ -56,16 +63,43 @@
 <script>
   const API_URL = 'https://script.google.com/macros/s/AKfycbzj9VQteghWUbRZCO9a-iAnACk51peyx65-nNrwV2wg35RGDUTySs8dWVedAKhrhqJJWg/exec';
 
-  fetch(API_URL)
-    .then(function (res) { return res.json(); })
-    .then(function (data) {
-      if (!data.success) throw new Error(data.error || 'Unbekannter Fehler');
-      render(data.schichten);
-    })
-    .catch(function () {
-      document.getElementById('loading').innerHTML =
-        '<span class="has-text-danger">Übersicht konnte nicht geladen werden. Bitte Seite neu laden.</span>';
-    });
+  ladeUebersicht();
+  document.getElementById('retryBtn').addEventListener('click', function () {
+    ladeUebersicht(0);
+  });
+
+  function ladeUebersicht(versuch) {
+    versuch = versuch || 0;
+
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('loading').innerHTML =
+      '<i class="fa-solid fa-spinner fa-spin"></i> Lade Übersicht … das kann bei Google Apps Script gelegentlich ein paar Sekunden dauern.';
+    document.getElementById('loadError').style.display = 'none';
+    document.getElementById('planContainer').innerHTML = '';
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(function () { controller.abort(); }, 20000);
+
+    fetch(API_URL, { signal: controller.signal, cache: 'no-store' })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        clearTimeout(timeoutId);
+        if (!data.success) throw new Error(data.error || 'Unbekannter Fehler');
+        render(data.schichten);
+      })
+      .catch(function () {
+        clearTimeout(timeoutId);
+        // Bis zu 2 automatische Wiederholungen im Hintergrund, bevor eine
+        // Fehlermeldung erscheint – Cross-Origin-Aufrufe zu Apps Script
+        // setzen gelegentlich einzeln aus, klappen aber im nächsten Versuch.
+        if (versuch < 2) {
+          setTimeout(function () { ladeUebersicht(versuch + 1); }, 1500);
+          return;
+        }
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('loadError').style.display = 'block';
+      });
+  }
 
   function render(schichten) {
     document.getElementById('loading').style.display = 'none';

@@ -130,20 +130,24 @@
   let mannschaftData = [];
 
   ladeSchichten();
-  document.getElementById('retryBtn').addEventListener('click', ladeSchichten);
+  document.getElementById('retryBtn').addEventListener('click', function () {
+    ladeSchichten(0);
+  });
 
-  function ladeSchichten() {
+  function ladeSchichten(versuch) {
+    versuch = versuch || 0;
+
     document.getElementById('schichtenContainer').innerHTML =
       '<div class="notification is-light">' +
         '<i class="fa-solid fa-spinner fa-spin"></i> Lade Schichten … das kann bei Google Apps Script gelegentlich ein paar Sekunden dauern.' +
       '</div>';
     document.getElementById('loadError').style.display = 'none';
 
-    // Timeout nach 25 Sekunden, damit die Seite nicht endlos "lädt" wirkt
+    // Timeout pro Versuch, damit ein einzelner hängender Aufruf nicht ewig blockiert
     const controller = new AbortController();
-    const timeoutId = setTimeout(function () { controller.abort(); }, 25000);
+    const timeoutId = setTimeout(function () { controller.abort(); }, 20000);
 
-    fetch(API_URL, { signal: controller.signal })
+    fetch(API_URL, { signal: controller.signal, cache: 'no-store' })
       .then(function (res) { return res.json(); })
       .then(function (data) {
         clearTimeout(timeoutId);
@@ -152,6 +156,13 @@
       })
       .catch(function () {
         clearTimeout(timeoutId);
+        // Bis zu 2 automatische Wiederholungen, bevor der Nutzer eine Fehlermeldung sieht –
+        // Apps-Script-Aufrufe per fetch() aus einer anderen Domain schlagen gelegentlich
+        // einzeln fehl, klappen aber im nächsten Versuch fast immer.
+        if (versuch < 2) {
+          setTimeout(function () { ladeSchichten(versuch + 1); }, 1500);
+          return;
+        }
         document.getElementById('schichtenContainer').innerHTML = '';
         document.getElementById('loadError').style.display = 'block';
       });
@@ -266,29 +277,47 @@
     const btn = document.getElementById('submitBtn');
     btn.classList.add('is-loading');
 
-    // Content-Type text/plain vermeidet den CORS-Preflight (OPTIONS),
-    // den Apps Script nicht unterstützt. Der Body ist trotzdem echtes JSON.
-    fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload)
-    })
-      .then(function (res) { return res.json(); })
-      .then(function (data) {
-        btn.classList.remove('is-loading');
-        if (!data.success) {
-          errorBox.textContent = data.error || 'Es ist ein Fehler aufgetreten.';
-          errorBox.style.display = 'block';
-          return;
-        }
-        document.getElementById('anmeldeForm').style.display = 'none';
-        document.getElementById('successBox').style.display = 'block';
+    submitAnmeldung(payload, 0);
+
+    function submitAnmeldung(payload, versuch) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(function () { controller.abort(); }, 20000);
+
+      // Content-Type text/plain vermeidet den CORS-Preflight (OPTIONS),
+      // den Apps Script nicht unterstützt. Der Body ist trotzdem echtes JSON.
+      fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload),
+        signal: controller.signal
       })
-      .catch(function () {
-        btn.classList.remove('is-loading');
-        errorBox.textContent = 'Verbindung fehlgeschlagen. Bitte nochmal versuchen.';
-        errorBox.style.display = 'block';
-      });
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          clearTimeout(timeoutId);
+          btn.classList.remove('is-loading');
+          if (!data.success) {
+            errorBox.textContent = data.error || 'Es ist ein Fehler aufgetreten.';
+            errorBox.style.display = 'block';
+            return;
+          }
+          document.getElementById('anmeldeForm').style.display = 'none';
+          document.getElementById('successBox').style.display = 'block';
+        })
+        .catch(function () {
+          clearTimeout(timeoutId);
+          // Ein automatischer Retry nur bei reinem Verbindungsfehler (nicht bei
+          // fachlichen Fehlern wie "Schicht voll" – die kommen ja als data.success=false
+          // zurück und landen oben, nicht hier). Danach lieber den Nutzer selbst
+          // nochmal klicken lassen, um Doppel-Anmeldungen zu vermeiden.
+          if (versuch < 1) {
+            submitAnmeldung(payload, versuch + 1);
+            return;
+          }
+          btn.classList.remove('is-loading');
+          errorBox.textContent = 'Verbindung fehlgeschlagen. Bitte pr\u00fcfen, ob die Anmeldung in der \u00dcbersicht schon angekommen ist, bevor du es nochmal versuchst.';
+          errorBox.style.display = 'block';
+        });
+    }
   });
 </script>
 </body>
